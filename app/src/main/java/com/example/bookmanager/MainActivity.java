@@ -38,7 +38,7 @@ public class MainActivity extends AppCompatActivity {
         listViewBooks = findViewById(R.id.listViewBooks);
         add = findViewById(R.id.btnAdd);
         edit = findViewById(R.id.btnEdit);
-        delete =  findViewById(R.id.btnDelete);
+        delete = findViewById(R.id.btnDelete);
 
         dbHelper = new DatabaseHelper(this);
         bookList = new ArrayList<>();
@@ -61,10 +61,12 @@ public class MainActivity extends AppCompatActivity {
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                 selectedBookPosition = position;
             }
+        });
 
+        listViewBooks.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
+            @Override
             public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
                 String selectedBook = bookList.get(position);
-                // Hiển thị dialog để xác nhận xóa sách
                 new AlertDialog.Builder(MainActivity.this)
                         .setTitle("Delete Book")
                         .setMessage("Are you sure you want to delete this book?")
@@ -81,7 +83,7 @@ public class MainActivity extends AppCompatActivity {
                         .show();
                 return true;
             }
-            });
+        });
 
         edit.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -89,46 +91,47 @@ public class MainActivity extends AppCompatActivity {
                 if (selectedBookPosition != -1) {
                     String selectedItem = bookList.get(selectedBookPosition);
                     String[] parts = selectedItem.split(" - ");
-                    String title = parts[0]; // Tiêu đề sách
-                    String author = parts[1]; // Tác giả
-                    String tags = parts[2]; // Thẻ
+                    String title = parts[0];
+                    String author = parts[1];
+                    String tags = parts[2];
 
-                    // Chuyển sang EditBookActivity và truyền thông tin của cuốn sách được chọn
-                    Intent intent = new Intent(MainActivity.this, EditBookActivity.class);
-                    intent.putExtra("TITLE", title);
-                    intent.putExtra("AUTHOR", author);
-                    intent.putExtra("TAGS", tags);
-                    startActivityForResult(intent, REQUEST_CODE_EDIT_BOOK);
+                    SQLiteDatabase db = dbHelper.getReadableDatabase();
+                    Cursor cursor = db.query(DatabaseHelper.TABLE_BOOKS, new String[]{DatabaseHelper.COLUMN_ID},
+                            DatabaseHelper.COLUMN_TITLE + " = ? AND " + DatabaseHelper.COLUMN_AUTHOR + " = ? AND " + DatabaseHelper.COLUMN_TAGS + " = ?",
+                            new String[]{title, author, tags}, null, null, null);
+
+                    if (cursor.moveToFirst()) {
+                        int bookId = cursor.getInt(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_ID));
+                        Intent intent = new Intent(MainActivity.this, EditBookActivity.class);
+                        intent.putExtra("BOOK_ID", bookId);
+                        startActivityForResult(intent, REQUEST_CODE_EDIT_BOOK);
+                    }
+                    cursor.close();
+                    db.close();
                 } else {
                     Toast.makeText(MainActivity.this, "Vui lòng chọn một cuốn sách để chỉnh sửa", Toast.LENGTH_SHORT).show();
                 }
             }
         });
+
         delete.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 if (selectedBookPosition != -1) {
-                    // Lấy id của cuốn sách được chọn
                     String selectedBook = bookList.get(selectedBookPosition);
                     String[] parts = selectedBook.split(" - ");
-                    final String title = parts[0]; // Tiêu đề sách
+                    final String title = parts[0];
 
-                    // Hiển thị dialog để xác nhận xóa sách
                     new AlertDialog.Builder(MainActivity.this)
                             .setTitle("Delete Book")
                             .setMessage("Are you sure you want to delete the book: " + title + "?")
                             .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
                                 public void onClick(DialogInterface dialog, int which) {
-                                    // Xóa sách khỏi cơ sở dữ liệu
                                     SQLiteDatabase db = dbHelper.getWritableDatabase();
                                     db.delete(DatabaseHelper.TABLE_BOOKS, DatabaseHelper.COLUMN_TITLE + " = ?", new String[]{title});
                                     db.close();
-
-                                    // Xóa sách khỏi danh sách và cập nhật ListView
                                     bookList.remove(selectedBookPosition);
                                     adapter.notifyDataSetChanged();
-
-                                    // Đặt lại vị trí sách được chọn
                                     selectedBookPosition = -1;
                                 }
                             })
@@ -148,7 +151,6 @@ public class MainActivity extends AppCompatActivity {
         if (requestCode == REQUEST_CODE_EDIT_BOOK && resultCode == RESULT_OK && data != null) {
             boolean bookUpdated = data.getBooleanExtra("BOOK_UPDATED", false);
             if (bookUpdated) {
-                // Nếu cuốn sách được cập nhật, làm mới danh sách sách và cập nhật ListView
                 loadBooks();
                 adapter.notifyDataSetChanged();
             }
@@ -156,7 +158,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void loadBooks() {
-        bookList.clear(); // Xóa danh sách sách cũ trước khi tải mới
+        bookList.clear();
         SQLiteDatabase db = dbHelper.getReadableDatabase();
         Cursor cursor = db.query(DatabaseHelper.TABLE_BOOKS, null, null, null, null, null, null);
 
